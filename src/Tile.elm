@@ -1,4 +1,4 @@
-module Tile exposing (Tile, TileType, RailType, getTileType, getRailType)
+module Tile exposing (Tile, TileType(..), RailType(..), getTileType, getRailType)
 
 import BitOps exposing (getBits)
 
