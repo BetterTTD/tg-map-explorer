@@ -7,17 +7,18 @@ import Tuple exposing (pair)
 import Task
 import WebGL as WGL
 import Array exposing (Array)
-import WebGL.Texture as WGLTexture exposing (Texture)
+import WebGL.Texture as WGLTexture
 import Math.Vector2 as Vector2 exposing (Vec2, vec2)
 import Debug
+
+import ArrayChunkStorage
+import Tile exposing (Tile, TileType(..), RailType(..))
+import Chunk
 
 type alias Flags = ()
 
 type Msg
-  = TextureLoaded (Result WGLTexture.Error Texture)
-
-type alias Tile = Int
-type alias Chunk = Array Int
+  = TextureLoaded (Result WGLTexture.Error WGLTexture.Texture)
 
 type alias Vertex =
   { position: Vec2
@@ -27,7 +28,7 @@ type alias Vertex =
   }
 
 type alias TileMeshUniforms =
-  { texture: WGLTexture.Texture
+  { tilesetTexture: WGLTexture.Texture
   , chunkShift: Vec2
   }
 
@@ -41,32 +42,10 @@ type CornerType
   | CornerType_RD
   | CornerType_RU
 
-type TileType
-  = TileType_Flat
-  | TileType_LDRU
-  | TileType_LMRM
-  | TileType_LURD
-  | TileType_RDLU
-  | TileType_RMLM
-  | TileType_RULD
-  | TileType_MDMU
-  | TileType_MUMD
-
-type RailType
-  = RailType_None
-  | RailType_LDRU
-  | RailType_LMRM
-  | RailType_LURD
-  | RailType_RDLU
-  | RailType_RMLM
-  | RailType_RULD
-  | RailType_MDMU
-  | RailType_MUMD
-
-createVertex: (Float, Float) -> CornerType -> TileType -> RailType -> Vertex
+createVertex: (Float, Float) -> CornerType -> Tile.TileType -> Tile.RailType -> Vertex
 createVertex (posX, posY) cornerType tileType railType =
   let
-    tileTypeToTexCoord = (\_ -> vec2 1 2)
+    tileTypeToTexCoord = (\_ -> vec2 1 1)
     railTypeToTextCoord = (\_ -> vec2 0 0)
   in
     { position = vec2 posX posY
@@ -80,7 +59,7 @@ createVertex (posX, posY) cornerType tileType railType =
           CornerType_RU -> vec2 1 1
     }
 
-tileToTriangles: Int -> Tile -> List (Vertex, Vertex, Vertex)
+tileToTriangles: Int -> Tile.Tile -> List (Vertex, Vertex, Vertex)
 tileToTriangles ind _ =
   let
 
@@ -98,44 +77,51 @@ tileToTriangles ind _ =
     , ( vrtLD, vrtRD, vrtRU )
     ]
 
-debugVertex: Vertex -> Vertex
-debugVertex a =
-  let
-    _ = Debug.log "Position" ( Vector2.getX a.position, Vector2.getY a.position )
-  in
-    a
+type alias Map =
+  { mapSize: (Int, Int)
+  , chunks: ArrayChunkStorage
+  }
 
-debugTriangle: (Vertex, Vertex, Vertex) -> (Vertex, Vertex, Vertex)
-debugTriangle (a, b, c) =
-  ( debugVertex a
-  , debugVertex b
-  , debugVertex c
-  )
-
-generateMesh: Chunk -> WGL.Mesh Vertex
-generateMesh chunk =
-  chunk
-    |> Array.indexedMap (\ind tile -> (ind, tile))
-    |> Array.toList
-    |> List.concatMap (\(ind, tile) -> tileToTriangles ind tile)
---    |> List.map (debugTriangle)
-    |> WGL.triangles
+type alias RenderingParams =
+  { canvasSize: (Int, Int)
+  , zoom: Float
+  , mapOffset: (Int, Int)
+  , tilesetTexture: Maybe WGLTexture.Texture
+  }
 
 type alias Model =
-  { mapSize: (Int, Int)
-  , texture: Maybe Texture
-  , chunk: Chunk
+  { map: Map
+  , renderingParams: RenderingParams
   , errorMessage: Maybe String
   }
 
-createDefaultChunk: Chunk
-createDefaultChunk = Array.repeat 32 0
+type alias ArrayChunkStorageCell =
+  { horizontalOffset: Int
+  , verticalOffset: Int
+  , chunk: Chunk.Chunk
+  }
+
+type alias ArrayChunkStorage = Array ArrayChunkStorageCell
+
+generateSampleMap: Map
+generateSampleMap =
+  let
+    mapSize = pair 800 400
+    chunks = ArrayChunkStorage.createDummyStorage (800, 400)
+  in
+    { mapSize = mapSize
+    , chunks = chunks
+    }
 
 initialModel: Model
 initialModel =
-  { mapSize = (500, 500)
-  , texture = Nothing
-  , chunk = createDefaultChunk
+  { map = generateSampleMap
+  , renderingParams =
+      { canvasSize = (1000, 500)
+      , zoom = 1.0
+      , mapOffset = (0, 0)
+      , tilesetTexture = Nothing
+      }
   , errorMessage = Nothing
   }
 
@@ -143,7 +129,7 @@ requestTexture: String -> Cmd Msg
 requestTexture path =
   let
     defaultOptions = WGLTexture.defaultOptions
-    loadOptions = { defaultOptions | flipY = False, magnify = WGLTexture.nearest }
+    loadOptions = { defaultOptions | flipY = True, magnify = WGLTexture.nearest }
   in
     WGLTexture.loadWith loadOptions path
       |> Task.attempt TextureLoaded
@@ -152,42 +138,57 @@ init: Flags -> (Model, Cmd Msg)
 init _ =
   pair initialModel <| requestTexture "../resources/texture.png"
 
+setTexture: WGLTexture.Texture -> Model -> Model
+setTexture texture model =
+  let
+    renderingParams = model.renderingParams
+    updatedParams = { renderingParams | tilesetTexture = Just texture }
+  in
+    { model | renderingParams = updatedParams }
+
 update: Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     TextureLoaded mbTexture ->
       case mbTexture of
-         Ok texture -> ( {model | texture = Just texture}, Cmd.none )
+         Ok texture ->
+           pair
+             ( setTexture texture model )
+             Cmd.none
          Err _ -> ( {model | errorMessage = Just "Cant load texture"}, Cmd.none )
+
+collectVisibleChunks: (Int, Int) -> (Int, Int) -> ArrayChunkStorage -> Array (Int, Int, Chunk.Chunk)
+collectVisibleChunks hLim vLim storage =
+  ArrayChunkStorage.getVisibleChunks hLim vLim storage
+
+generateMesh: Chunk.Chunk -> WGL.Mesh Vertex
+generateMesh chunk =
+  chunk
+    |> Array.indexedMap (\ind tile -> (ind, tile))
+    |> Array.toList
+    |> List.concatMap (\(ind, tile) -> tileToTriangles ind tile)
+    |> WGL.triangles
+
+renderChunk: WGLTexture.Texture -> (Int, Int, Chunk.Chunk) -> WGL.Entity
+renderChunk texture (hOffset, vOffset, chunk) =
+  WGL.entity vertTileShader fragTileShader (generateMesh chunk)
+    { tilesetTexture = texture
+    , chunkShift = vec2 (toFloat hOffset) (toFloat vOffset)
+    }
 
 view: Model -> Html Msg
 view model =
-  case model.texture of
+  case model.renderingParams.tilesetTexture of
     Just texture ->
       let
-        chunkShifts =
-          [ (0.0, 0.0), (1.0, 0.0)
-          , (0.0, 1.0), (1.0, 1.0)
-          , (0.0, 2.0), (1.0, 2.0)
-          , (0.0, 3.0), (1.0, 3.0)
-          ]
-        entityGenerator: TileMeshUniforms -> WGL.Entity
-        entityGenerator uniform =
-          WGL.entity
-              vertTileShader
-              fragTileShader
-              (generateMesh model.chunk)
-              uniform
-        entities =
-          chunkShifts
-            |> List.map (\(shiftX, shiftY) -> { texture = texture, chunkShift = vec2 shiftX shiftY })
-            |> List.map entityGenerator
+        (canvasWidth, canvasHeight) = model.renderingParams.canvasSize
       in
-      WGL.toHtml
-        [ width 1200
-        , height 500
-        , style "border" "1px solid black"
-        ] entities
+      WGL.toHtml [ width canvasWidth , height canvasHeight ]
+        ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
+            |> Array.toList
+            |> Debug.log "List"
+            |> List.map (renderChunk texture )
+        )
     Nothing ->
       Html.text <|
         case model.errorMessage of
@@ -232,11 +233,11 @@ fragTileShader =
   [glsl|
     precision highp float;
 
-    uniform sampler2D texture;
+    uniform sampler2D tilesetTexture;
 
     varying vec2 uvTexCoords;
 
     void main() {
-      gl_FragColor = texture2D(texture, uvTexCoords);
+      gl_FragColor = texture2D(tilesetTexture, uvTexCoords);
     }
   |]
