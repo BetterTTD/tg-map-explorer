@@ -1,0 +1,24 @@
+{
+  "name": "ottd_viz",
+  "version": "1.0.0",
+  "description": "OpenTTD map explorer",
+  "scripts": {
+    "build": "rollup -c",
+    "serve-dev": "rollup -cw"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TG-OpenTTD/tg-map-explorer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/TG-OpenTTD/tg-map-explorer/issues"
+  },
+  "homepage": "https://github.com/TG-OpenTTD/tg-map-explorer#readme",
+  "devDependencies": {
+    "rollup": "^2.52.7",
+    "rollup-plugin-elm": "^3.0.0",
+    "rollup-plugin-serve": "^1.1.0"
+  }
+}
