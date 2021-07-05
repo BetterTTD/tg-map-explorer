@@ -134,9 +134,10 @@ requestTexture path =
     WGLTexture.loadWith loadOptions path
       |> Task.attempt TextureLoaded
 
+
 init: Flags -> (Model, Cmd Msg)
 init _ =
-  pair initialModel <| requestTexture "../resources/texture.png"
+  pair initialModel <| requestTexture "./texture.png"
 
 setTexture: WGLTexture.Texture -> Model -> Model
 setTexture texture model =
