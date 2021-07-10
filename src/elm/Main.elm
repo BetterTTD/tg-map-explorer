@@ -92,7 +92,6 @@ type alias RenderingParams =
 type alias Model =
   { map: Map
   , renderingParams: RenderingParams
-  , errorMessage: Maybe String
   }
 
 type alias ArrayChunkStorageCell =
@@ -122,7 +121,6 @@ initialModel =
       , mapOffset = (0, 0)
       , tilesetTexture = Nothing
       }
-  , errorMessage = Nothing
   }
 
 requestTexture: String -> Cmd Msg
@@ -156,7 +154,7 @@ update msg model =
            pair
              ( setTexture texture model )
              Cmd.none
-         Err _ -> ( {model | errorMessage = Just "Cant load texture"}, Cmd.none )
+         Err _ -> pair model Cmd.none
 
 collectVisibleChunks: (Int, Int) -> (Int, Int) -> ArrayChunkStorage -> Array (Int, Int, Chunk.Chunk)
 collectVisibleChunks hLim vLim storage =
@@ -191,10 +189,7 @@ view model =
             |> List.map (renderChunk texture )
         )
     Nothing ->
-      Html.text <|
-        case model.errorMessage of
-           Just message -> message
-           Nothing -> "Hz voobs4e"
+      Html.text "Freeze"
 
 
 subscriptions: Model -> Sub Msg
