@@ -198,7 +198,7 @@ view model =
     Just texture ->
       let
         canvasWidth = getCanvasWidth model.renderingParams.canvasSize
-        canvasHeight = getCanvasWidth model.renderingParams.canvasSize
+        canvasHeight = getCanvasHeight model.renderingParams.canvasSize
       in
       WGL.toHtml [ width canvasWidth , height canvasHeight ]
         ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
