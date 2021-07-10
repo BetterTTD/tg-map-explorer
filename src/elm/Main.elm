@@ -224,7 +224,7 @@ main = Browser.element
 vertTileShader: WGL.Shader Vertex TileMeshUniforms TileMeshVaryings
 vertTileShader = 
   [glsl|
-    precision highp float;
+    precision mediump float;
 
     attribute vec2 position;
     attribute vec2 uvTileCoords;
@@ -245,7 +245,7 @@ vertTileShader =
 fragTileShader: WGL.Shader {} TileMeshUniforms TileMeshVaryings
 fragTileShader =
   [glsl|
-    precision highp float;
+    precision mediump float;
 
     uniform sampler2D tilesetTexture;
 
