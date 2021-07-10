@@ -3,12 +3,15 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (width, height)
+import Html.Events as HtmlEvents
 import Tuple exposing (pair)
 import Task
 import WebGL as WGL
 import Array exposing (Array)
 import WebGL.Texture as WGLTexture
 import Math.Vector2 as Vector2 exposing (Vec2, vec2)
+
+import Json.Decode as Decode
 import Debug
 
 import ArrayChunkStorage
@@ -17,8 +20,14 @@ import Chunk
 
 type alias Flags = ()
 
+type MouseEventMsg
+  = MouseDown MousePosition
+  | MouseUp MousePosition
+  | MouseMove MousePosition
+
 type Msg
   = TextureLoaded (Result WGLTexture.Error WGLTexture.Texture)
+  | MouseEvent MouseEventMsg
 
 type alias Vertex =
   { position: Vec2
@@ -41,6 +50,7 @@ type CornerType
   | CornerType_LU
   | CornerType_RD
   | CornerType_RU
+
 
 tilesetTexturePath: String
 tilesetTexturePath = "./texture.png"
@@ -121,9 +131,25 @@ type alias RenderingParams =
   , tilesetTexture: Maybe WGLTexture.Texture
   }
 
+type MousePosition = MousePosition Int Int
+
+mousePosition: Int -> Int -> MousePosition
+mousePosition x y = MousePosition x y
+
+getMousePositionX: MousePosition -> Int
+getMousePositionX (MousePosition x _) = x
+
+getMousePositionY: MousePosition -> Int
+getMousePositionY (MousePosition _ y) = y
+
+type alias MouseControlState =
+  { lastMousePosition: Maybe MousePosition
+  }
+
 type alias Model =
   { map: Map
   , renderingParams: RenderingParams
+  , mouseControlState: MouseControlState
   }
 
 type alias ArrayChunkStorageCell =
@@ -154,6 +180,9 @@ initialModel =
       , mapOffset = (0, 0)
       , tilesetTexture = Nothing
       }
+  , mouseControlState =
+      { lastMousePosition = Nothing
+      }
   }
 
 requestTexture: String -> Cmd Msg
@@ -180,6 +209,7 @@ setTexture texture model =
 update: Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
+
     TextureLoaded mbTexture ->
       case mbTexture of
          Ok texture ->
@@ -187,6 +217,9 @@ update msg model =
              ( setTexture texture model )
              Cmd.none
          Err _ -> pair model Cmd.none
+
+    MouseEvent event ->
+        (model, Cmd.none)
 
 collectVisibleChunks: (Int, Int) -> (Int, Int) -> ArrayChunkStorage -> Array (Int, Int, Chunk.Chunk)
 collectVisibleChunks hLim vLim storage =
@@ -207,6 +240,27 @@ renderChunk texture (hOffset, vOffset, chunk) =
     , chunkShift = vec2 (toFloat hOffset) (toFloat vOffset)
     }
 
+mouseOffsetXDecoder: Decode.Decoder Int
+mouseOffsetXDecoder =
+  Decode.field "offestX" Decode.int
+
+mouseOffsetYDecoder: Decode.Decoder Int
+mouseOffsetYDecoder =
+  Decode.field "offsetY" Decode.int
+
+mouseOffsetDecoder: Decode.Decoder MousePosition
+mouseOffsetDecoder =
+  Decode.map2 mousePosition mouseOffsetXDecoder mouseOffsetYDecoder
+
+mouseMoveDecoder: Decode.Decoder Msg
+mouseMoveDecoder = Decode.map (MouseEvent << MouseMove) mouseOffsetDecoder
+
+mouseUpDecoder: Decode.Decoder Msg
+mouseUpDecoder = Decode.map (MouseEvent << MouseUp) mouseOffsetDecoder
+
+mouseDownDecoder: Decode.Decoder Msg
+mouseDownDecoder = Decode.map (MouseEvent << MouseDown) mouseOffsetDecoder
+
 view: Model -> Html Msg
 view model =
   case model.renderingParams.tilesetTexture of
@@ -215,7 +269,13 @@ view model =
         canvasWidth = getCanvasWidth model.renderingParams.canvasSize
         canvasHeight = getCanvasHeight model.renderingParams.canvasSize
       in
-      WGL.toHtml [ width canvasWidth , height canvasHeight ]
+      WGL.toHtml
+        [ width canvasWidth
+        , height canvasHeight
+        , HtmlEvents.on "mousedown" mouseDownDecoder
+        , HtmlEvents.on "mousemove" mouseMoveDecoder
+        , HtmlEvents.on "mouseup" mouseMoveDecoder
+        ]
         ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
             |> Array.toList
             |> Debug.log "List"
