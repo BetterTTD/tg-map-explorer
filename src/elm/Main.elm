@@ -12,7 +12,7 @@ import Math.Vector2 as Vector2 exposing (Vec2, vec2)
 import Debug
 
 import ArrayChunkStorage
-import Tile exposing (Tile, TileType(..), RailType(..))
+import Tile exposing (TileType(..), RailType(..))
 import Chunk
 
 type alias Flags = ()
@@ -89,8 +89,20 @@ tileToTriangles ind _ =
     , ( vrtLD, vrtRD, vrtRU )
     ]
 
+type MapSize =
+  MapSize Int Int
+
+createMapSize: Int -> Int -> MapSize
+createMapSize h w = MapSize w h
+
+getMapWidth: MapSize -> Int
+getMapWidth (MapSize _ w) = w
+
+getMapHeight: MapSize -> Int
+getMapHeight (MapSize h _) = h
+
 type alias Map =
-  { mapSize: (Int, Int)
+  { mapSize: MapSize
   , chunks: ArrayChunkStorage
   }
 
@@ -119,11 +131,12 @@ type alias ArrayChunkStorageCell =
 
 type alias ArrayChunkStorage = Array ArrayChunkStorageCell
 
-generateSampleMap: Map
-generateSampleMap =
+generateSampleMap: MapSize -> Map
+generateSampleMap mapSize =
   let
-    mapSize = pair 800 400
-    chunks = ArrayChunkStorage.createDummyStorage (800, 400)
+    mapWidth = getMapWidth mapSize
+    mapHeight = getMapHeight mapSize
+    chunks = ArrayChunkStorage.createDummyStorage (mapWidth, mapHeight)
   in
     { mapSize = mapSize
     , chunks = chunks
@@ -131,7 +144,7 @@ generateSampleMap =
 
 initialModel: Model
 initialModel =
-  { map = generateSampleMap
+  { map = generateSampleMap <| createMapSize 800 400
   , renderingParams =
       { canvasSize = canvasSize 400 400
       , zoom = zoomFactor 1.0
@@ -148,7 +161,6 @@ requestTexture path =
   in
     WGLTexture.loadWith loadOptions path
       |> Task.attempt TextureLoaded
-
 
 init: Flags -> (Model, Cmd Msg)
 init _ =
