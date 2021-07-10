@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (Html)
-import Html.Attributes exposing (width, height, style)
+import Html.Attributes exposing (width, height)
 import Tuple exposing (pair)
 import Task
 import WebGL as WGL
@@ -41,6 +41,9 @@ type CornerType
   | CornerType_LU
   | CornerType_RD
   | CornerType_RU
+
+tilesetTexturePath: String
+tilesetTexturePath = "./texture.png"
 
 type CanvasSize =
   CanvasSize Int Int
@@ -164,7 +167,7 @@ requestTexture path =
 
 init: Flags -> (Model, Cmd Msg)
 init _ =
-  pair initialModel <| requestTexture "./texture.png"
+  pair initialModel <| requestTexture tilesetTexturePath
 
 setTexture: WGLTexture.Texture -> Model -> Model
 setTexture texture model =
