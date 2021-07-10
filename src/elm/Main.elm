@@ -42,6 +42,18 @@ type CornerType
   | CornerType_RD
   | CornerType_RU
 
+type CanvasSize =
+  CanvasSize Int Int
+
+canvasSize: Int -> Int -> CanvasSize
+canvasSize w h = CanvasSize w h
+
+getCanvasWidth: CanvasSize -> Int
+getCanvasWidth (CanvasSize w _) = w
+
+getCanvasHeight: CanvasSize -> Int
+getCanvasHeight (CanvasSize _ h) = h
+
 createVertex: (Float, Float) -> CornerType -> Tile.TileType -> Tile.RailType -> Vertex
 createVertex (posX, posY) cornerType tileType railType =
   let
@@ -82,9 +94,14 @@ type alias Map =
   , chunks: ArrayChunkStorage
   }
 
+type ZoomFactor = ZoomFactor Float
+
+zoomFactor: Float -> ZoomFactor
+zoomFactor factor = ZoomFactor factor
+
 type alias RenderingParams =
-  { canvasSize: (Int, Int)
-  , zoom: Float
+  { canvasSize: CanvasSize
+  , zoom: ZoomFactor
   , mapOffset: (Int, Int)
   , tilesetTexture: Maybe WGLTexture.Texture
   }
@@ -116,8 +133,8 @@ initialModel: Model
 initialModel =
   { map = generateSampleMap
   , renderingParams =
-      { canvasSize = (1000, 500)
-      , zoom = 1.0
+      { canvasSize = canvasSize 400 400
+      , zoom = zoomFactor 1.0
       , mapOffset = (0, 0)
       , tilesetTexture = Nothing
       }
@@ -180,7 +197,8 @@ view model =
   case model.renderingParams.tilesetTexture of
     Just texture ->
       let
-        (canvasWidth, canvasHeight) = model.renderingParams.canvasSize
+        canvasWidth = getCanvasWidth model.renderingParams.canvasSize
+        canvasHeight = getCanvasWidth model.renderingParams.canvasSize
       in
       WGL.toHtml [ width canvasWidth , height canvasHeight ]
         ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
