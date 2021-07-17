@@ -10,6 +10,7 @@ import WebGL as WGL
 import Array exposing (Array)
 import WebGL.Texture as WGLTexture
 import Math.Vector2 as Vector2 exposing (Vec2, vec2)
+import Math.Matrix4 as Matrix4 exposing (Mat4)
 
 import Json.Decode as Decode
 import Debug
@@ -38,7 +39,7 @@ type alias Vertex =
 
 type alias TileMeshUniforms =
   { tilesetTexture: WGLTexture.Texture
-  , chunkShift: Vec2
+  , perspective: Mat4
   }
 
 type alias TileMeshVaryings =
@@ -190,7 +191,7 @@ initialModel: Model
 initialModel =
   { map = generateSampleMap <| createMapSize 800 400
   , renderingParams =
-      { canvasSize = canvasSize 400 400
+      { canvasSize = canvasSize 1200 600
       , zoom = zoomFactor 1.0
       , mapOffset = mapOffset 0 0
       , viewportOffset = viewportOffset 0 0
@@ -275,7 +276,7 @@ renderChunk: WGLTexture.Texture -> (Int, Int, Chunk.Chunk) -> WGL.Entity
 renderChunk texture (hOffset, vOffset, chunk) =
   WGL.entity vertTileShader fragTileShader (generateMesh chunk)
     { tilesetTexture = texture
-    , chunkShift = vec2 (toFloat hOffset) (toFloat vOffset)
+    , perspective = Matrix4.makeOrtho2D -10.0 10.0 -10.0 10.0
     }
 
 mouseOffsetXDecoder: Decode.Decoder Int
@@ -314,9 +315,9 @@ view model =
         , HtmlEvents.on "mousemove" mouseMoveDecoder
         , HtmlEvents.on "mouseup" mouseUpDecoder
         ]
-        ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
+        ( collectVisibleChunks (0, 1) (0, 1) model.map.chunks
             |> Array.toList
-            |> Debug.log "List"
+            |> Debug.log "Chunks"
             |> List.map (renderChunk texture )
         )
     Nothing ->
@@ -344,13 +345,12 @@ vertTileShader =
     attribute vec2 uvRailCoords;
     attribute vec2 texCoords;
 
-    uniform vec2 chunkShift;
+    uniform mat4 perspective;
 
     varying vec2 uvTexCoords;
 
     void main() {
-      vec2 mapCoords = vec2(position.x + chunkShift.x * 8.0, position.y + chunkShift.y * 4.0) * 0.1 - 1.0;
-      gl_Position = vec4(mapCoords, 0.0, 1.0);
+      gl_Position = perspective * vec4(position, 0.0, 1.0);
       uvTexCoords = (texCoords + uvTileCoords) * 0.25;
     }
   |]
