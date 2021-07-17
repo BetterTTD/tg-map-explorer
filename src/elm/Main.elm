@@ -124,10 +124,25 @@ type ZoomFactor = ZoomFactor Float
 zoomFactor: Float -> ZoomFactor
 zoomFactor factor = ZoomFactor factor
 
+type MapOffset =
+  MapOffset Int Int
+
+mapOffset: Int -> Int -> MapOffset
+mapOffset x y =
+  MapOffset x y
+
+type ViewportOffset =
+  ViewportOffset Int Int
+
+viewportOffset: Int -> Int -> ViewportOffset
+viewportOffset x y =
+  ViewportOffset x y
+
 type alias RenderingParams =
   { canvasSize: CanvasSize
   , zoom: ZoomFactor
-  , mapOffset: (Int, Int)
+  , mapOffset: MapOffset
+  , viewportOffset: ViewportOffset
   , tilesetTexture: Maybe WGLTexture.Texture
   }
 
@@ -177,7 +192,8 @@ initialModel =
   , renderingParams =
       { canvasSize = canvasSize 400 400
       , zoom = zoomFactor 1.0
-      , mapOffset = (0, 0)
+      , mapOffset = mapOffset 0 0
+      , viewportOffset = viewportOffset 0 0
       , tilesetTexture = Nothing
       }
   , mouseControlState =
