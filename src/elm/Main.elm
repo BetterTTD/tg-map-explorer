@@ -222,6 +222,28 @@ setTexture texture model =
   in
     { model | renderingParams = updatedParams }
 
+setLastMousePosition: Maybe MousePosition -> MouseControlState -> MouseControlState
+setLastMousePosition value state =
+  { state | lastMousePosition = value }
+
+handleMouseMsg: MouseEventMsg -> Model -> (Model, Cmd Msg)
+handleMouseMsg msg model =
+  case msg of
+    MouseUp _ ->
+      pair
+        { model | mouseControlState = setLastMousePosition Nothing model.mouseControlState }
+        Cmd.none
+
+    MouseDown position ->
+      pair
+        { model | mouseControlState = setLastMousePosition (Just position) model.mouseControlState }
+        Cmd.none
+
+    MouseMove position ->
+      pair
+        { model | mouseControlState = setLastMousePosition (Just position) model.mouseControlState }
+        Cmd.none
+
 update: Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -234,8 +256,8 @@ update msg model =
              Cmd.none
          Err _ -> pair model Cmd.none
 
-    MouseEvent event ->
-        (model, Cmd.none)
+    MouseEvent mouseMsg ->
+      handleMouseMsg mouseMsg model
 
 collectVisibleChunks: (Int, Int) -> (Int, Int) -> ArrayChunkStorage -> Array (Int, Int, Chunk.Chunk)
 collectVisibleChunks hLim vLim storage =
@@ -290,7 +312,7 @@ view model =
         , height canvasHeight
         , HtmlEvents.on "mousedown" mouseDownDecoder
         , HtmlEvents.on "mousemove" mouseMoveDecoder
-        , HtmlEvents.on "mouseup" mouseMoveDecoder
+        , HtmlEvents.on "mouseup" mouseUpDecoder
         ]
         ( collectVisibleChunks (0, 10) (0, 10) model.map.chunks
             |> Array.toList
