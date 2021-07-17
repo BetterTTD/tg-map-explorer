@@ -21,10 +21,15 @@ import Chunk
 
 type alias Flags = ()
 
+type WheelMove
+  = WheelMoveUp
+  | WheelMoveDown
+
 type MouseEventMsg
   = MouseDown MousePosition
   | MouseUp MousePosition
   | MouseMove MousePosition
+  | MouseWheel WheelMove
 
 type Msg
   = TextureLoaded (Result WGLTexture.Error WGLTexture.Texture)
@@ -200,7 +205,7 @@ initialModel =
   { map = generateSampleMap <| createMapSize 800 400
   , renderingParams =
       { canvasSize = canvasSize 1200 600
-      , zoom = zoomFactor 10
+      , zoom = zoomFactor 100
       , mapOffset = MapOffset 0.0 0.0
       , viewportOffset = viewportOffset 0 0
       , tilesetTexture = Nothing
@@ -244,6 +249,28 @@ updateMapOffset shiftX shiftY params =
   | mapOffset = MapOffset (oldXOffset + shiftX) (oldYOffset - shiftY)
   }
 
+increaseZoom: RenderingParams -> RenderingParams
+increaseZoom params =
+  let
+    (ZoomFactor zoom) = params.zoom
+  in
+    if zoom <= 90
+      then
+        { params | zoom = ZoomFactor <| zoom + 10}
+      else
+        params
+
+decreaseZoom: RenderingParams -> RenderingParams
+decreaseZoom params =
+  let
+    (ZoomFactor zoom) = params.zoom
+  in
+    if zoom > 10
+      then
+        { params | zoom = ZoomFactor <| zoom - 10}
+      else
+        params
+
 
 handleMouseMsg: MouseEventMsg -> Model -> (Model, Cmd Msg)
 handleMouseMsg msg model =
@@ -257,6 +284,18 @@ handleMouseMsg msg model =
       pair
         { model | mouseControlState = setLastMousePosition (Just position) model.mouseControlState }
         Cmd.none
+
+    MouseWheel wheelType ->
+      case wheelType of
+        WheelMoveUp ->
+          ( { model | renderingParams = increaseZoom model.renderingParams }
+          , Cmd.none
+          )
+
+        WheelMoveDown ->
+          ( { model | renderingParams = decreaseZoom model.renderingParams }
+          , Cmd.none
+          )
 
     MouseMove position ->
       case model.mouseControlState.lastMousePosition of
@@ -340,6 +379,21 @@ mouseDownDecoder: Decode.Decoder Msg
 mouseDownDecoder =
   Decode.map (MouseEvent << MouseDown) mouseOffsetDecoder
 
+deltaYDecoder: Decode.Decoder Int
+deltaYDecoder =
+  Decode.field "deltaY" Decode.int
+
+deltaYToWheelMove: Int -> WheelMove
+deltaYToWheelMove value =
+  if value > 0
+    then
+      WheelMoveUp
+    else
+      WheelMoveDown
+
+wheelDecoder =
+  Decode.map (MouseEvent << MouseWheel << deltaYToWheelMove) deltaYDecoder
+
 view: Model -> Html Msg
 view model =
   case model.renderingParams.tilesetTexture of
@@ -376,6 +430,7 @@ view model =
         , HtmlEvents.on "mousedown" mouseDownDecoder
         , HtmlEvents.on "mousemove" mouseMoveDecoder
         , HtmlEvents.on "mouseup" mouseUpDecoder
+        , HtmlEvents.on "wheel" wheelDecoder
         , Html.Attributes.style "border" "1px solid black"
         ]
         ( visibleChunks
