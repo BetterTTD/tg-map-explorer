@@ -26,8 +26,8 @@ isCellVisible hLim vLim cell =
 
 createDummyCell: Int -> Int -> Int -> Cell
 createDummyCell width _ ind =
-  { horizontalOffset = modBy width ind
-  , verticalOffset = ind // width
+  { horizontalOffset = (modBy width ind) * 8
+  , verticalOffset = (ind // width) * 4
   , chunk = Array.repeat 32 0
   }
 

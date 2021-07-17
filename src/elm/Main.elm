@@ -110,27 +110,35 @@ createMapSize: Int -> Int -> MapSize
 createMapSize h w = MapSize w h
 
 getMapWidth: MapSize -> Int
-getMapWidth (MapSize _ w) = w
+getMapWidth (MapSize _ value) =
+  value
 
 getMapHeight: MapSize -> Int
-getMapHeight (MapSize h _) = h
+getMapHeight (MapSize value _) =
+  value
 
 type alias Map =
   { mapSize: MapSize
   , chunks: ArrayChunkStorage
   }
 
-type ZoomFactor = ZoomFactor Float
+type ZoomFactor =
+  ZoomFactor Float
 
 zoomFactor: Float -> ZoomFactor
-zoomFactor factor = ZoomFactor factor
+zoomFactor factor =
+  ZoomFactor factor
 
 type MapOffset =
-  MapOffset Int Int
+  MapOffset Float Float
 
-mapOffset: Int -> Int -> MapOffset
-mapOffset x y =
-  MapOffset x y
+getHorizontalMapOffset: MapOffset -> Float
+getHorizontalMapOffset (MapOffset value _) =
+  value
+
+getVerticalMapOffset: MapOffset -> Float
+getVerticalMapOffset (MapOffset _ value) =
+  value
 
 type ViewportOffset =
   ViewportOffset Int Int
@@ -192,8 +200,8 @@ initialModel =
   { map = generateSampleMap <| createMapSize 800 400
   , renderingParams =
       { canvasSize = canvasSize 1200 600
-      , zoom = zoomFactor 1.0
-      , mapOffset = mapOffset 0 0
+      , zoom = zoomFactor 40
+      , mapOffset = MapOffset 0.0 0.0
       , viewportOffset = viewportOffset 0 0
       , tilesetTexture = Nothing
       }
@@ -272,11 +280,11 @@ generateMesh chunk =
     |> List.concatMap (\(ind, tile) -> tileToTriangles ind tile)
     |> WGL.triangles
 
-renderChunk: WGLTexture.Texture -> (Int, Int, Chunk.Chunk) -> WGL.Entity
-renderChunk texture (hOffset, vOffset, chunk) =
+renderChunk: WGLTexture.Texture -> Mat4 -> (Int, Int, Chunk.Chunk) -> WGL.Entity
+renderChunk texture perspective (hOffset, vOffset, chunk) =
   WGL.entity vertTileShader fragTileShader (generateMesh chunk)
     { tilesetTexture = texture
-    , perspective = Matrix4.makeOrtho2D -10.0 10.0 -10.0 10.0
+    , perspective = perspective
     }
 
 mouseOffsetXDecoder: Decode.Decoder Int
@@ -305,8 +313,27 @@ view model =
   case model.renderingParams.tilesetTexture of
     Just texture ->
       let
-        canvasWidth = getCanvasWidth model.renderingParams.canvasSize
-        canvasHeight = getCanvasHeight model.renderingParams.canvasSize
+        renderingParams = model.renderingParams
+        canvasWidth = getCanvasWidth renderingParams.canvasSize
+        canvasHeight = getCanvasHeight renderingParams.canvasSize
+        hMapOffset = getHorizontalMapOffset renderingParams.mapOffset
+        vMapOffset = getVerticalMapOffset renderingParams.mapOffset
+        (ZoomFactor zoom) = model.renderingParams.zoom
+        horizontalTilesCount = ceiling <| toFloat canvasWidth / zoom
+        vertiacalTilesCoutn = ceiling <| toFloat canvasHeight / zoom
+
+        -- Границы отображаемого сегмента карты в системе координат карты
+        leftXBorder = hMapOffset
+        downYBorder = vMapOffset
+        rightXBorder = leftXBorder + (toFloat horizontalTilesCount)
+        upYBorder = downYBorder + (toFloat vertiacalTilesCoutn)
+
+        perspective = Matrix4.makeOrtho2D leftXBorder rightXBorder downYBorder upYBorder
+        visibleChunks =
+          collectVisibleChunks
+            ( floor leftXBorder, ceiling rightXBorder)
+            ( floor downYBorder, ceiling upYBorder)
+            model.map.chunks
       in
       WGL.toHtml
         [ width canvasWidth
@@ -314,11 +341,12 @@ view model =
         , HtmlEvents.on "mousedown" mouseDownDecoder
         , HtmlEvents.on "mousemove" mouseMoveDecoder
         , HtmlEvents.on "mouseup" mouseUpDecoder
+        , Html.Attributes.style "border" "1px solid black"
         ]
-        ( collectVisibleChunks (0, 1) (0, 1) model.map.chunks
-            |> Array.toList
+        ( visibleChunks
             |> Debug.log "Chunks"
-            |> List.map (renderChunk texture )
+            |> Array.toList
+            |> List.map (renderChunk texture perspective)
         )
     Nothing ->
       Html.text "Freeze"
