@@ -200,7 +200,7 @@ initialModel =
   { map = generateSampleMap <| createMapSize 800 400
   , renderingParams =
       { canvasSize = canvasSize 1200 600
-      , zoom = zoomFactor 40
+      , zoom = zoomFactor 10
       , mapOffset = MapOffset 0.0 0.0
       , viewportOffset = viewportOffset 0 0
       , tilesetTexture = Nothing
@@ -235,6 +235,16 @@ setLastMousePosition: Maybe MousePosition -> MouseControlState -> MouseControlSt
 setLastMousePosition value state =
   { state | lastMousePosition = value }
 
+updateMapOffset: Float -> Float -> RenderingParams -> RenderingParams
+updateMapOffset shiftX shiftY params =
+  let
+    (MapOffset oldXOffset oldYOffset) = params.mapOffset
+  in
+  { params
+  | mapOffset = MapOffset (oldXOffset + shiftX) (oldYOffset - shiftY)
+  }
+
+
 handleMouseMsg: MouseEventMsg -> Model -> (Model, Cmd Msg)
 handleMouseMsg msg model =
   case msg of
@@ -249,9 +259,22 @@ handleMouseMsg msg model =
         Cmd.none
 
     MouseMove position ->
-      pair
-        { model | mouseControlState = setLastMousePosition (Just position) model.mouseControlState }
-        Cmd.none
+      case model.mouseControlState.lastMousePosition of
+        Nothing ->
+          (model, Cmd.none)
+        Just (MousePosition lastX lastY)->
+          let
+            (ZoomFactor zoom) = model.renderingParams.zoom
+            (MousePosition curX curY) = position
+            shiftX = toFloat (lastX - curX) / zoom
+            shiftY = toFloat (lastY - curY) / zoom
+          in
+          ( { model
+            |   mouseControlState = setLastMousePosition (Just position) model.mouseControlState
+            ,   renderingParams = updateMapOffset shiftX shiftY model.renderingParams
+            }
+          , Cmd.none
+          )
 
 update: Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -286,7 +309,6 @@ renderChunk texture perspective (hOffset, vOffset, chunk) =
     translationX = toFloat hOffset * 8.0
     translationY = toFloat vOffset * 4.0
     translationZ = 0.0
-    _ = Debug.log "Chunk" (hOffset, vOffset, chunk)
   in
   WGL.entity vertTileShader fragTileShader (generateMesh chunk)
     { tilesetTexture = texture
@@ -296,7 +318,7 @@ renderChunk texture perspective (hOffset, vOffset, chunk) =
 
 mouseOffsetXDecoder: Decode.Decoder Int
 mouseOffsetXDecoder =
-  Decode.field "offestX" Decode.int
+  Decode.field "offsetX" Decode.int
 
 mouseOffsetYDecoder: Decode.Decoder Int
 mouseOffsetYDecoder =
@@ -307,13 +329,16 @@ mouseOffsetDecoder =
   Decode.map2 mousePosition mouseOffsetXDecoder mouseOffsetYDecoder
 
 mouseMoveDecoder: Decode.Decoder Msg
-mouseMoveDecoder = Decode.map (MouseEvent << MouseMove) mouseOffsetDecoder
+mouseMoveDecoder =
+  Decode.map (MouseEvent << MouseMove) mouseOffsetDecoder
 
 mouseUpDecoder: Decode.Decoder Msg
-mouseUpDecoder = Decode.map (MouseEvent << MouseUp) mouseOffsetDecoder
+mouseUpDecoder =
+  Decode.map (MouseEvent << MouseUp) mouseOffsetDecoder
 
 mouseDownDecoder: Decode.Decoder Msg
-mouseDownDecoder = Decode.map (MouseEvent << MouseDown) mouseOffsetDecoder
+mouseDownDecoder =
+  Decode.map (MouseEvent << MouseDown) mouseOffsetDecoder
 
 view: Model -> Html Msg
 view model =
