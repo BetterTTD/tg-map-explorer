@@ -282,9 +282,16 @@ generateMesh chunk =
 
 renderChunk: WGLTexture.Texture -> Mat4 -> (Int, Int, Chunk.Chunk) -> WGL.Entity
 renderChunk texture perspective (hOffset, vOffset, chunk) =
+  let
+    translationX = toFloat hOffset * 8.0
+    translationY = toFloat vOffset * 4.0
+    translationZ = 0.0
+    _ = Debug.log "Chunk" (hOffset, vOffset, chunk)
+  in
   WGL.entity vertTileShader fragTileShader (generateMesh chunk)
     { tilesetTexture = texture
-    , perspective = perspective
+    , perspective =
+        Matrix4.translate3 translationX translationY translationZ perspective
     }
 
 mouseOffsetXDecoder: Decode.Decoder Int
@@ -328,6 +335,9 @@ view model =
         rightXBorder = leftXBorder + (toFloat horizontalTilesCount)
         upYBorder = downYBorder + (toFloat vertiacalTilesCoutn)
 
+        leftChunkOffset = floor leftXBorder // 8
+        downChunkOffset = floor downYBorder // 4
+
         perspective = Matrix4.makeOrtho2D leftXBorder rightXBorder downYBorder upYBorder
         visibleChunks =
           collectVisibleChunks
@@ -344,7 +354,7 @@ view model =
         , Html.Attributes.style "border" "1px solid black"
         ]
         ( visibleChunks
-            |> Debug.log "Chunks"
+            |> Array.map (\(hOffset, vOffset, chunk) -> (hOffset // 8 - leftChunkOffset, vOffset // 4 - downChunkOffset, chunk))
             |> Array.toList
             |> List.map (renderChunk texture perspective)
         )
