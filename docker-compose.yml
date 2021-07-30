@@ -1,0 +1,24 @@
+version: '3.3'
+
+services:
+
+  server:
+    build:
+      context: server
+    networks:
+      - server-network
+
+  frontend:
+    build:
+      context: frontend
+    networks:
+      - client-network
+    ports:
+      - 80:80
+    volumes:
+      - ./frontend/src:/code/src:ro
+
+networks:
+  client-network: {}
+  server-network: {}
+

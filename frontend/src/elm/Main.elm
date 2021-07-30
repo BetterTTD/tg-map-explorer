@@ -254,9 +254,9 @@ increaseZoom params =
   let
     (ZoomFactor zoom) = params.zoom
   in
-    if zoom <= 90
+    if zoom > 10
       then
-        { params | zoom = ZoomFactor <| zoom + 10}
+        { params | zoom = ZoomFactor <| zoom - 10}
       else
         params
 
@@ -265,9 +265,9 @@ decreaseZoom params =
   let
     (ZoomFactor zoom) = params.zoom
   in
-    if zoom > 10
+    if zoom <= 90
       then
-        { params | zoom = ZoomFactor <| zoom - 10}
+        { params | zoom = ZoomFactor <| zoom + 10}
       else
         params
 

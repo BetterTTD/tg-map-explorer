@@ -2,6 +2,7 @@ module ArrayChunkStorage exposing (ChunkStorage, getVisibleChunks, createDummySt
 
 import Array exposing (Array)
 import Chunk exposing (Chunk)
+import Debug
 
 type alias Cell =
   { horizontalOffset: Int
@@ -43,5 +44,9 @@ createDummyStorage (width, height) =
 
 getVisibleChunks: (Int, Int) -> (Int, Int) -> ChunkStorage -> Array (Int, Int, Chunk)
 getVisibleChunks hLim vLim storage =
+  --let
+  --  _ = Debug.log "horizontal limit" hLim
+  --  _ = Debug.log "vertical limit" vLim
+  --in
   Array.filter (isCellVisible hLim vLim) storage
     |> Array.map (\cell -> (cell.horizontalOffset, cell.verticalOffset, cell.chunk))
